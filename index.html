@@ -1,0 +1,626 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<title>Shooter</title>
+<meta charset="utf-8">
+<style type="text/css">
+body {
+	margin: 0;
+	padding: 0;
+	background-color: #000;
+}
+</style>
+<script src="Menu.js"></script>
+<script src="S1.js"></script>
+<script src="S2.js"></script>
+
+<script src="//cdn.jsdelivr.net/phaser/2.6.2/phaser.min.js" type="text/javascript"></script>
+</head>
+<body>
+	<script type="text/javascript">
+		var game = new Phaser.Game(800, 450, Phaser.CANVAS, '', this, false, false);
+
+		function preload(){
+
+			game.load.baseURL = 'https://p16bouk.github.io/Shooter/';
+			game.load.crossOrigin = 'anonymous';
+					}
+		var explosions;
+		var lvl = 1;
+		var greenEnemies;
+		var blueEnemies;
+		var enemyBullets;
+		var player;
+		var starfield;
+		var cursors;
+		var bank;
+		var shipTrail;
+		var bullets;
+		var fireButton;
+		var bulletTimer = 0;
+		var explosionSo;
+		var greenEnemyLaunchTimer;
+		var greenEnemySpacing = 1000;
+		var blueEnemyLaunched = false;
+		var blueEnemyLaunchTimer;
+		var gameOver;
+		var score = 0;
+    var scoreText;
+		var playerDeath;
+		var badboss;
+    var bosshealth = 1000;
+		var BossDead = false;
+		var BossLaunched = false;
+		var count = 1;
+		var deathrays;
+
+		var ACCLERATION = 600;
+		var DRAG = 400;
+		var MAXSPEED = 400;
+		var ENEMY_SPEED = 300;
+
+		game.state.add('S1', S1);
+		game.state.add('S2', S2);
+		game.state.add('Menu', MENU);
+		game.state.start('Menu');
+
+function render() {
+
+	 greenEnemyLaunchTimer = game.time.events.add(game.rnd.integerInRange(MIN_ENEMY_SPACING, MAX_ENEMY_SPACING), launchGreenEnemy);
+
+			enemyTrail.setScale(0.01, 0.1, 0.01, 0.1, 1000, Phaser.Easing.Quintic.Out);
+      enemy.trail = enemyTrail;
+
+		for (var i = 0; i < greenEnemies.length; i++)
+     {
+         game.debug.body(greenEnemies.children[i]);
+     }
+     game.debug.body(player);
+
+		}
+
+		function LaunchBoss() {
+
+			     game.time.events.remove(greenEnemyLaunchTimer);
+					 greenEnemies.enableBody = false;
+			     game.time.events.remove(blueEnemyLaunchTimer);
+					blueEnemies.enableBody = false;
+            var ENEMY_SPEED = 200;
+            var enemy = badboss.getFirstExists(false);
+            if (enemy) {
+                if (enemy.x > player.x) {
+                    ENEMY_SPEED = 200;
+                } else {
+                    ENEMY_SPEED = -200;
+                }
+                enemy.reset(game.width, game.height / 2);
+                enemy.body.velocity.x = ENEMY_SPEED;
+                enemy.body.velocity.y = game.rnd.integerInRange(0, -25);
+                enemy.body.drag.y = 90;
+                enemy.body.drag.x = 90;
+                enemy.trail.start(false, 800, 1);
+                enemy.alive = true;
+                //  Set up firing
+                var bulletSpeed = 1500;
+                var firingDelay = 2000;
+                enemy.bullets = 100;
+                enemy.lastShot = 0;
+                //  Update function for each enemy ship to update rotation etc
+                enemy.update = function() {
+                    enemy.angle = 270 - game.math.radToDeg(Math.atan2(enemy.body.velocity.x, enemy.body.velocity.y));
+                    enemy.trail.x = enemy.x;
+                    enemy.trail.y = enemy.y - 10;
+                    //  Fire
+                    var enemyBullet = deathrays.getFirstExists(false);
+                    for (var i = 0; i < 3; i++) {
+                        if (enemyBullet &&
+                            this.alive &&
+                            this.bullets &&
+                            this.x > player.x && this.y < game.height - 50 &&
+                            game.time.now > firingDelay + this.lastShot ) {
+                            this.lastShot = game.time.now;
+                            enemyBullet.reset(this.x, this.y + this.height / 2);
+                        }
+                        this.bullets--;
+                        enemyBullet.damageAmount = this.damageAmount;
+                        var angle = game.physics.arcade.moveToObject(enemyBullet, player, bulletSpeed);
+                        enemyBullet.angle = game.math.radToDeg(angle);
+                    }
+                }
+                //enemys=game.add.audio('v1sound');
+                //enemys.play();
+            }
+            //  Kill enemies once they go off screen
+            if (enemy.x < 0) {
+                enemy.kill();
+            }
+        }
+
+				function hitBoss(badboss, bullet) {
+					game.time.events.remove(greenEnemyLaunchTimer);
+					greenEnemies.enableBody = false;
+					game.time.events.remove(blueEnemyLaunchTimer);
+				 blueEnemies.enableBody = false;
+            var explosion = explosions.getFirstExists(false);
+            explosion.reset(bullet.body.x + bullet.body.halfWidth, bullet.body.y + bullet.body.halfHeight);
+            explosion.body.velocity.y = badboss.body.velocity.y;
+            explosion.alpha = 0.7;
+            explosion.play('explosion', 30, false, true);
+            bullet.kill();
+            // Increase score
+
+            bosshealth = bosshealth - 50;
+            if (bosshealth <= 0 && lvl == 1) {
+                score += badboss.damageAmount * 100;
+                scoreText.render();
+                badboss.kill();
+                BossDead = true;
+                theme.stop();
+                score = 0;
+                scoreText.render();
+                game.state.start('S2');
+            }
+            if (bosshealth <= 0 && lvl == 2){
+            	score += badboss.damageAmount * 100;
+                scoreText.render();
+                badboss.kill();
+                BossDead = true;
+                music.stop();
+                score = 0;
+                scoreText.render();
+                game.state.start('Menu');
+            }
+        }
+
+		function restart () {
+    //  Reset the enemies
+    greenEnemies.callAll('kill');
+    game.time.events.remove(greenEnemyLaunchTimer);
+    game.time.events.add(1000, launchGreenEnemy);
+
+		blueEnemies.callAll('kill');
+		blueEnemyBullets.callAll('kill');
+		game.time.events.remove(blueEnemyLaunchTimer);
+
+		up1.callAll('kill');
+		game.time.events.remove(up1);
+
+		up2.callAll('kill');
+		game.time.events.remove(up2);
+
+		up3.callAll('kill');
+		game.time.events.remove(up3);
+
+		up4.callAll('kill');
+		game.time.events.remove(up4);
+
+
+    //  Revive the player
+		player.weaponLevel = 1;
+    player.revive();
+    player.health = 100;
+    shields.render();
+    score = 0;
+    scoreText.render();
+
+    //  Hide the text
+    gameOver.visible = false;
+
+		//  Reset Boss
+		badboss.callAll('kill');
+	  deathrays.callAll('kill');
+
+		//  Reset pacing
+    greenEnemySpacing = 1000;
+    blueEnemyLaunched = false;
+		BossLaunched = false;
+    BossDead = false;
+    bosshealth = 600;
+
+	  theme.stop();
+
+		game.state.start('Menu');
+
+}
+
+function launchGreenEnemy() {
+
+     var enemy = greenEnemies.getFirstExists(false);
+     if (enemy) {
+			 enemy.reset( game.width, game.rnd.integerInRange ( 20, 580));
+			 enemy.body.velocity.y = game.rnd.integerInRange(-200, 200);
+			 enemy.body.velocity.x = -300;
+			 enemy.body.drag.y = 100;
+
+			  enemy.trail.start(false, 800, 1);
+			 console.log("Enemy Spawned");
+
+				 //  Update function for each enemy ship to update rotation etc
+    	  enemy.update = function(){
+          enemy.angle = 270 - game.math.radToDeg(Math.atan2(enemy.body.velocity.x, enemy.body.velocity.y));
+
+					enemy.trail.x = enemy.x;
+          enemy.trail.y = enemy.y;
+
+				//  Kill enemies once they go off screen
+			if (enemy.x < -200) {
+            enemy.kill();
+         }
+				 //Send another enemy soon
+	    greenEnemyLaunchTimer = game.time.events.add(game.rnd.integerInRange(greenEnemySpacing, greenEnemySpacing + 1000), launchGreenEnemy);
+
+     }
+	  }
+	}
+
+	function launchBlueEnemy() {
+    var startingY = game.rnd.integerInRange(100, game.height - 100);
+    var horizontalSpeed = 180;
+    var spread = 60;
+    var frequency = 70;
+    var horizontalSpacing = 70;
+    var numEnemiesInWave = 5;
+    var timeBetweenWaves = 2500;
+
+    //  Launch wave
+    for (var i = 0; i < numEnemiesInWave; i++) {
+        var enemy = blueEnemies.getFirstExists(false);
+        if (enemy) {
+            enemy.startingY = startingY;
+            enemy.reset(game.width + horizontalSpacing * i, enemy.startingY);
+            enemy.body.velocity.x = -horizontalSpeed;
+
+						//  Set up firing
+            var bulletSpeed = 400;
+            var firingDelay = 2000;
+            enemy.bullets = 1;
+            enemy.lastShot = 0;
+
+            //  Update function for each enemy
+            enemy.update = function(){
+              //  Wave movement
+              this.body.y = this.startingY + Math.sin((this.x) / frequency) * spread;
+
+              //  Squish and rotate ship for illusion of "banking"
+              bank = Math.cos((this.x + 60) / frequency)
+              this.scale.y = 0.5 - Math.abs(bank) / 8;
+              this.angle = bank * 2;
+
+							//  Fire
+              enemyBullet = blueEnemyBullets.getFirstExists(false);
+              if (enemyBullet && this.alive && this.bullets && this.x > game.width / 8 && game.time.now > firingDelay + this.lastShot) {
+                    this.lastShot = game.time.now;
+                    this.bullets--;
+                    enemyBullet.reset(this.x, this.y);
+                    enemyBullet.damageAmount = this.damageAmount;
+                    var angle = game.physics.arcade.moveToObject(enemyBullet, player, bulletSpeed);
+                    enemyBullet.angle = game.math.radToDeg(angle);
+                }
+
+              //  Kill enemies once they go off screen
+              if (this.x < -200) {
+                this.kill();
+								this.x = -2
+              }
+            };
+        }
+    }
+
+    //  Send another wave soon
+    blueEnemyLaunchTimer = game.time.events.add(game.rnd.integerInRange(timeBetweenWaves, timeBetweenWaves + 4000), launchBlueEnemy);
+}
+
+function enemyHitsPlayer (player, bullet) {
+
+    bullet.kill();
+
+    player.damage(bullet.damageAmount);
+    shields.render()
+
+		if (player.alive) {
+        var explosion = explosions.getFirstExists(false);
+        explosion.reset(player.body.x + player.body.halfWidth, player.body.y + player.body.halfHeight);
+        explosion.alpha = 0.7;
+        explosion.play('explosion', 30, false, true);
+    } else {
+        playerDeath.x = player.x;
+        playerDeath.y = player.y;
+        playerDeath.start(false, 1000, 10, 10);
+    }
+}
+
+function launchUp1() {
+		var ups = up1.getFirstExists(false);
+		if (ups) {
+			ups.reset(game.width, game.rnd.integerInRange(100, game.height-100));
+			ups.body.velocity.x = -ENEMY_SPEED;
+			ups.body.velocity.y = 0;
+			ups.body.drag.y = 100;
+			if (ups.y > game.height ) {
+				ups.kill();
+			}
+		}
+	}
+
+	function launchUp2() {
+		var ups = up2.getFirstExists(false);
+		if (ups) {
+			ups.reset(game.width, game.rnd.integerInRange(100, game.height-100));
+			ups.body.velocity.x = -ENEMY_SPEED;
+			ups.body.velocity.y = 0;
+			ups.body.drag.y = 100;
+			if (ups.y > game.height ) {
+				ups.kill();
+			}
+		}
+	}
+
+	function launchUp3() {
+		var ups = up3.getFirstExists(false);
+		if (ups) {
+			ups.reset(game.width, game.rnd.integerInRange(100, game.height-100));
+			ups.body.velocity.x = -ENEMY_SPEED;
+			ups.body.velocity.y = 0;
+			ups.body.drag.y = 100;
+			if (ups.y > game.height ) {
+				ups.kill();
+			}
+		}
+	}
+
+	function launchUp4() {
+		var ups = up4.getFirstExists(false);
+		if (ups) {
+			ups.reset(game.width, game.rnd.integerInRange(100, game.height-100));
+			ups.body.velocity.x = -ENEMY_SPEED;
+			ups.body.velocity.y = 0;
+			ups.body.drag.y = 100;
+			if (ups.y > game.height ) {
+				ups.kill();
+			}
+		}
+	}
+
+	function playerhitsup1 (player, up1){
+		 up1.kill();
+		 if (player.weaponLevel < 2	) {
+			player.weaponLevel = 2;
+		}
+	}
+
+	function playerhitsup2 (player, up2){
+			up2.kill();
+			if (player.weaponLevel < 3) {
+				player.weaponLevel = 3;
+			}
+		}
+
+	function playerhitsup3 (player, up3){
+			up3.kill();
+			if (player.weaponLevel < 4) {
+				player.weaponLevel = 4;
+			}
+		}
+
+	function playerhitsup4 (player, up4){
+			up4.kill();
+			if (player.weaponLevel < 5) {
+				player.weaponLevel = 5;
+			}
+		}
+
+function addEnemyEmitterTrail(enemy) {
+	var enemyTrail = game.add.emitter(enemy.x, player.y - 10, 100);
+	enemyTrail.width = 10;
+	enemyTrail.makeParticles('explosion', [1,2,3,4,5]);
+	enemyTrail.setXSpeed(20, -20);
+	enemyTrail.setRotation(50,-50);
+	enemyTrail.setAlpha(0.4, 0, 800);
+	enemyTrail.setScale(0.01, 0.1, 0.01, 0.1, 1000, Phaser.Easing.Quintic.Out);
+	enemy.trail = enemyTrail;
+ }
+
+function shipCollide(player, enemy) {
+		var explosionSo = game.add.audio('explosionSo');
+
+    enemy.kill();
+
+		player.damage(enemy.damageAmount);
+    shields.render();
+
+		if (player.alive) {
+        var explosion = explosions.getFirstExists(false);
+        explosion.reset(player.body.x + player.body.halfWidth, player.body.y + player.body.halfHeight);
+        explosion.alpha = 0.7;
+        explosion.play('explosion', 30, false, true);
+    } else {
+        playerDeath.x = player.x;
+        playerDeath.y = player.y;
+        playerDeath.start(false, 1000, 10, 10);
+    }
+}
+
+function fireBullet() {
+	switch (player.weaponLevel) {
+        case 1:
+        //  To avoid them being allowed to fire too fast we set a time limit
+        if (game.time.now > bulletTimer)
+		 {
+			 var BULLET_SPEED = 400;
+            var BULLET_SPACING = 250;
+            //  Grab the first bullet we can from the pool
+            var bullet = bullets.getFirstExists(false);
+
+            if (bullet)
+            {
+                //  And fire it
+                //  Make bullet come out of tip of ship with right angle
+                var bulletOffset = 20 * Math.sin(game.math.degToRad(player.angle));
+                bullet.reset(player.x + bulletOffset, player.y);
+                bullet.angle = player.angle;
+                game.physics.arcade.velocityFromAngle(bullet.angle, BULLET_SPEED, bullet.body.velocity);
+                bullet.body.velocity.y += player.body.velocity.y;
+
+                bulletTimer = game.time.now + BULLET_SPACING;
+            }
+        }
+        break;
+
+        case 2:
+        if (game.time.now > bulletTimer) {
+            var BULLET_SPEED = 400;
+            var BULLET_SPACING = 550;
+
+
+            for (var i = 0; i < 3; i++) {
+                var bullet = bullets.getFirstExists(false);
+                if (bullet) {
+                    //  Make bullet come out of tip of ship with right angle
+                    var bulletOffset = 20 * Math.sin(game.math.degToRad(player.angle));
+                    bullet.reset(player.x + bulletOffset, player.y);
+                    //  "Spread" angle of 1st and 3rd bullets
+                    var spreadAngle;
+                    if (i === 0) spreadAngle = -20;
+                    if (i === 1) spreadAngle = 0;
+                    if (i === 2) spreadAngle = 20;
+                    bullet.angle = player.angle + spreadAngle;
+                    game.physics.arcade.velocityFromAngle(spreadAngle, BULLET_SPEED, bullet.body.velocity);
+                    bullet.body.velocity.y += player.body.velocity.y;
+                }
+                bulletTimer = game.time.now + BULLET_SPACING;
+            }
+				}
+				break;
+				case 3:
+				if(game.time.now > bulletTimer){
+					var BULLET_SPEED = 400;
+					var BULLET_SPACING = 550;
+					for (var i = 0; i < 7; i++) {
+						var bullet = bullets.getFirstExists(false);
+						if (bullet) {
+							//  Make bullet come out of tip of ship with right angle
+							var bulletOffset = 20 * Math.sin(game.math.degToRad(player.angle));
+							bullet.reset(player.x + bulletOffset, player.y);
+							//  "Spread" angle of 1st and 3rd bullets
+							var spreadAngle;
+							if (i === 0) spreadAngle = -20;
+							if (i === 1) spreadAngle = 0;
+							if (i === 2) spreadAngle = 20;
+							if (i === 3) spreadAngle = 40;
+							if (i === 4) spreadAngle = -40;
+							bullet.angle = player.angle + spreadAngle;
+							game.physics.arcade.velocityFromAngle(spreadAngle , BULLET_SPEED, bullet.body.velocity);
+						}
+						bulletTimer = game.time.now + BULLET_SPACING;
+					}
+				}
+				break;
+
+				case 4:
+					if(game.time.now > bulletTimer){
+						var BULLET_SPEED = 400;
+						var BULLET_SPACING = 550;
+						for (var i = 0; i < 7; i++) {
+							var bullet = bullets.getFirstExists(false);
+							if (bullet) {
+								//  Make bullet come out of tip of ship with right angle
+								var bulletOffset = 20 * Math.sin(game.math.degToRad(player.angle));
+								bullet.reset(player.x + bulletOffset, player.y);
+								//  "Spread" angle of 1st and 3rd bullets
+								var spreadAngle;
+								if (i === 0) spreadAngle = -20;
+								if (i === 1) spreadAngle = 0;
+								if (i === 2) spreadAngle = 20;
+								if (i === 3) spreadAngle = 40;
+								if (i === 4) spreadAngle = -40;
+								if (i === 5) spreadAngle = 60;
+								if (i === 6) spreadAngle = -60;
+								bullet.angle = player.angle + spreadAngle;
+								game.physics.arcade.velocityFromAngle(spreadAngle , BULLET_SPEED, bullet.body.velocity);
+
+							}
+						bulletTimer = game.time.now + BULLET_SPACING;
+			}
+		}
+		break;
+		case 5:
+		if(game.time.now > bulletTimer){
+			var BULLET_SPEED = 400;
+			var BULLET_SPACING = 550;
+			for (var i = 0; i < 8; i++) {
+				var bullet = bullets.getFirstExists(false);
+				if (bullet) {
+					//  Make bullet come out of tip of ship with right angle
+					var bulletOffset = 20 * Math.sin(game.math.degToRad(player.angle));
+					bullet.reset(player.x + bulletOffset, player.y);
+					//  "Spread" angle of 1st and 3rd bullets
+					var spreadAngle;
+					if (i === 0) spreadAngle = -20;
+					if (i === 1) spreadAngle = 0;
+					if (i === 2) spreadAngle = 20;
+					if (i === 3) spreadAngle = 40;
+					if (i === 4) spreadAngle = -40;
+					if (i === 5) spreadAngle = 60;
+					if (i === 6) spreadAngle = -60;
+					if (i === 7) spreadAngle = 80;
+					if (i === 8) spreadAngle = -80;
+					bullet.angle = player.angle + spreadAngle;
+					game.physics.arcade.velocityFromAngle(spreadAngle , BULLET_SPEED, bullet.body.velocity);
+				}
+				bulletTimer = game.time.now + BULLET_SPACING;
+			}
+		}
+	}
+}
+
+function hitEnemy(enemy, bullet) {
+				var explosionSo = game.add.audio('explosionSo');
+		    var explosion = explosions.getFirstExists(false);
+		    explosion.reset(bullet.body.x + bullet.body.halfWidth, bullet.body.y + bullet.body.halfHeight);
+		    explosion.body.velocity.y = enemy.body.velocity.y;
+		    explosion.alpha = 0.7;
+		    explosion.play('explosion', 30, false, true);
+		    enemy.kill();
+				// Increase score
+				score += 100;
+        scoreText.render()
+				//  Pacing
+    //  Enemies come quicker as score increases
+    greenEnemySpacing *= 0.9;
+    //  Blue enemies come in after a score of 1000
+    if (!blueEnemyLaunched && score > 1000) {
+      blueEnemyLaunched = true;
+      launchBlueEnemy();
+      //  Slow green enemies down now that there are other enemies
+      greenEnemySpacing *= 2;
+    }
+		//  Weapon upgrade
+		if (score >= 200 && player.weaponLevel<2) {
+			launchUp1();
+		}
+		else if (score >= 400 && player.weaponLevel<3){
+			launchUp2();
+		}
+		else if (score >= 800 && player.weaponLevel<4){
+			launchUp3();
+		}
+		else if (score >= 1000 && player.weaponLevel<5){
+			launchUp4();
+		}
+				explosionSo.play();
+		    bullet.kill();
+
+				if (!BossLaunched && score > 5000) {
+                BossLaunched = true;
+                LaunchBoss();
+                game.time.events.remove(blueEnemyLaunchTimer);
+
+		 					 greenEnemies.enableBody = false;
+
+		 					blueEnemies.enableBody = false;
+                game.time.events.remove(greenEnemyLaunchTimer);
+            }
+		}
+	</script>
+</body>
+</html>
